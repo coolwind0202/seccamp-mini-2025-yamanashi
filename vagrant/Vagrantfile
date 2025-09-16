@@ -1,0 +1,38 @@
+Vagrant.configure("2") do |config|
+
+  # プライベートネットワーク設定
+  config.vm.network "private_network", type: "dhcp"
+
+  # service 仮想マシン
+  config.vm.define "service" do |service|
+    service.vm.box = "ubuntu/jammy64"
+    service.vm.hostname = "service"
+    service.vm.network "forwarded_port", guest: 80, host: 8080
+    
+    # NginxのインストールとSYN cookiesの無効化
+    service.vm.provision "shell", inline: <<-SHELL
+      apt-get update
+      apt-get install -y nginx
+
+      echo "I'm available!" > /var/www/html/index.nginx-debian.html
+
+      echo 0 > /proc/sys/net/ipv4/tcp_syncookies
+      sysctl -w net.ipv4.tcp_syncookies=0
+      echo "net.ipv4.tcp_syncookies = 0" >> /etc/sysctl.conf
+      systemctl start nginx
+    SHELL
+  end
+
+  # attacker 仮想マシン
+  config.vm.define "attacker" do |attacker|
+    attacker.vm.box = "ubuntu/jammy64"
+    attacker.vm.hostname = "attacker"
+    
+    # hping3のインストール
+    attacker.vm.provision "shell", inline: <<-SHELL
+      apt-get update
+      apt-get install -y hping3
+    SHELL
+  end
+end
+
