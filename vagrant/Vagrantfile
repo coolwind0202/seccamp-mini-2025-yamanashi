@@ -6,6 +6,7 @@ Vagrant.configure("2") do |config|
 
   config.hostmanager.ip_resolver = proc do |vm, resolving_vm|
     if hostname = (vm.ssh_info && vm.ssh_info[:host])
+      # vm にアクセスするための IP アドレスには enp0s8 のものを使用する
       vm.communicate.execute("ip -4 a show dev enp0s8 | grep inet | awk '{print $2}' | cut -f 1 -d /") do |type, contents|
         break contents.strip
       end
@@ -18,16 +19,18 @@ Vagrant.configure("2") do |config|
     service.vm.hostname = "service"
     service.vm.network "forwarded_port", guest: 80, host: 8080
     
-    # NginxのインストールとSYN cookiesの無効化
     service.vm.provision "shell", inline: <<-SHELL
       apt-get update
       apt-get install -y nginx
 
+      # Nginx のレスポンスを設定
       echo "The service is available!" > /var/www/html/index.nginx-debian.html
 
+      # TCP SYN Cookies を無効化する
       echo 0 > /proc/sys/net/ipv4/tcp_syncookies
       sysctl -w net.ipv4.tcp_syncookies=0
       echo "net.ipv4.tcp_syncookies = 0" >> /etc/sysctl.conf
+      
       systemctl start nginx
     SHELL
   end
