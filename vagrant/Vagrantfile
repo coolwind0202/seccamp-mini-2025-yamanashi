@@ -44,6 +44,9 @@ Vagrant.configure("2") do |config|
     attacker.vm.provision "shell", inline: <<-SHELL
       apt-get update
       apt-get install -y hping3
+
+      # 80 番ポートへの outgoing な RST パケットを破棄する
+      sudo iptables -A OUTPUT -p tcp --dport 80 --tcp-flags RST RST -j DROP
     SHELL
   end
 end
