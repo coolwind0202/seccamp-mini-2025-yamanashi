@@ -17,14 +17,24 @@ Vagrant.configure("2") do |config|
   config.vm.define "service" do |service|
     service.vm.box = "ubuntu/jammy64"
     service.vm.hostname = "service"
-    service.vm.network "forwarded_port", guest: 80, host: 8080
     
     service.vm.provision "shell", inline: <<-SHELL
-      apt-get update
-      apt-get install -y nginx
+      sudo sh -c 'cat <<"EOF" > /root/service.py
+import socket
+import os
 
-      # Nginx のレスポンスを設定
-      echo "The service is available!" > /var/www/html/index.nginx-debian.html
+server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server_socket.bind(("0.0.0.0", 5000))
+
+# Backlog の値を渡して listen (通常はこの値が SYN Queue のサイズになる)
+server_socket.listen(int(os.getenv("BACKLOG")))
+
+while True:
+  (client_socket, _) = server_socket.accept()
+
+  client_socket.send(b"Hello!\\n")
+  client_socket.close()
+EOF'
 
       # TCP SYN Cookies を無効化する
       echo 0 > /proc/sys/net/ipv4/tcp_syncookies
@@ -55,8 +65,8 @@ qname = "example.com"
 send(IP(dst=dns_ip, src=service_ip)/UDP()/DNS(qd=DNSQR(qname=qname)))
 EOF'
 
-      # 80 番ポートへの outgoing な RST パケットを破棄する
-      sudo iptables -A OUTPUT -p tcp --dport 80 --tcp-flags RST RST -j DROP
+      # 5000 番ポートへの outgoing な RST パケットを破棄する
+      sudo iptables -A OUTPUT -p tcp --dport 5000 --tcp-flags RST RST -j DROP
 
       # SSHによる送受信は許可される
       sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT
